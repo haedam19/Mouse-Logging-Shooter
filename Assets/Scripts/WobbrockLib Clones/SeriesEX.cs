@@ -1,3 +1,14 @@
+/* 
+ * Cloned from WobbrockLib.dll
+ * C# .NET 2.0 library of application-agnostic formulae, widgets, data structures, and algorithms
+ * 
+ *      Jacob O. Wobbrock, Ph.D.
+ * 		The Information School
+ *		University of Washington
+ *		Mary Gates Hall, Box 352840
+ *		Seattle, WA 98195-2840
+ *		wobbrock@uw.edu
+ */
 using System;
 using System.Collections;
 using System.Collections.Generic;

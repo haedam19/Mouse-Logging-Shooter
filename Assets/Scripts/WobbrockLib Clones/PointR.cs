@@ -9,7 +9,6 @@
  *		Seattle, WA 98195-2840
  *		wobbrock@uw.edu
  */
-
 /// <summary>
 /// 2차원 x, y좌표를 double로 저장합니다.
 /// </summary>
@@ -89,6 +88,45 @@ public struct PointR
         double num = p2.X - p1.X;
         double num2 = p2.Y - p1.Y;
         return Math.Sqrt(num * num + num2 * num2);
+    }
+
+    /// <summary>
+    /// start -> end 사이의 각도를 구합니다.
+    /// </summary>
+    /// <returns> angle in radians (double) </returns>
+    public static double Angle(PointR start, PointR end, bool positiveOnly)
+    {
+        double num = 0.0;
+        if (start.X != end.X)
+        {
+            num = Math.Atan2(end.Y - start.Y, end.X - start.X);
+        }
+        else if (end.Y < start.Y)
+        {
+            num = -Math.PI / 2.0;
+        }
+        else if (end.Y > start.Y)
+        {
+            num = Math.PI / 2.0;
+        }
+
+        if (positiveOnly && num < 0.0)
+        {
+            num += Math.PI * 2.0;
+        }
+
+        return num;
+    }
+
+    /// <summary>
+    /// p를 c를 중심으로 radians 만큼 회전시킨 점(PointR)을 반환합니다.
+    /// </summary>
+    public static PointR RotatePoint(PointR p, PointR c, double radians)
+    {
+        PointR empty = Empty;
+        empty.X = (p.X - c.X) * Math.Cos(radians) - (p.Y - c.Y) * Math.Sin(radians) + c.X;
+        empty.Y = (p.X - c.X) * Math.Sin(radians) + (p.Y - c.Y) * Math.Cos(radians) + c.Y;
+        return empty;
     }
 
     public static bool operator ==(PointR p1, PointR p2)

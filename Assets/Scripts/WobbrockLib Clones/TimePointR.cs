@@ -11,6 +11,7 @@
  */
 using System.Collections.Generic;
 using System.Drawing;
+using TimeL = System.Int64;
 
 public struct TimePointR
 {
@@ -20,7 +21,7 @@ public struct TimePointR
 
     private double _y;
 
-    private long _t;
+    private TimeL _t;
 
     public double X
     {
@@ -46,7 +47,7 @@ public struct TimePointR
         }
     }
 
-    public long Time
+    public TimeL Time
     {
         get
         {

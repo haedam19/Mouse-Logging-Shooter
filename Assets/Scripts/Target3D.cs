@@ -19,6 +19,13 @@ public class Target3D : MonoBehaviour
         }
     }
     public Vector2 posOnScreen;
+    public PointR Center
+    {
+        get
+        {
+            return new PointR(posOnScreen.x, posOnScreen.y);
+        }
+    }
 
     void Awake()
     {

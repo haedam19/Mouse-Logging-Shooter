@@ -37,24 +37,27 @@
 **/
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Xml;
 using UnityEngine;
 using TimeL = System.Int64;
 
 namespace Data
 {
-    public class MovementData
+    public class MovementData: IXmlLoggable
     {
         #region Types
+        /// <summary>
+        /// A structure containing references to a velocity, acceleration, and jerk time series.
+        /// </summary>
         public struct Profiles
         {
             public static readonly Profiles Empty;
             public bool IsEmpty { get { return Position == null && Velocity == null && Acceleration == null && Jerk == null; } }
-            public List<TimeL> timeStamp;
-            public List<Vector2> Position;
-            public List<Vector2> Velocity;
-            public List<Vector2> Acceleration;
-            public List<Vector2> Jerk;
+            public List<TimePointR> Position;
+            public List<PointR> Velocity;
+            public List<PointR> Acceleration;
+            public List<PointR> Jerk;
         }
 
         /// <summary>
@@ -70,23 +73,100 @@ namespace Data
         }
         #endregion
         private TrialData _owner;
-        public List<Vector2> mousePos;
-        public List<TimeL> time; // ms 단위
+        private List<TimePointR> _moves;
 
-        #region Properties: NumMoves, Travel, Duration
-        public int NumMoves { get { return mousePos.Count; } }
+        // public List<Vector2> mousePos;
+        // public List<TimeL> time; // ms 단위
+
+        #region Constants
+        /// <summary>
+        /// The frequency in cycles/second at which to resample. Resampling at 100 Hz, for example, 
+        /// would cause the movement points to fall at 1000 / 100 = 10 ms apart.
+        /// </summary>
+        private const int Hertz = 100;
+
+        /// <summary>
+        /// The standard deviation of the Gaussian kernel to use. The greater the standard deviation, 
+        /// the larger the kernel, and the smoother the result, as more neighboring values are taken into 
+        /// account when computing the current value. The two-sided kernel will be of size
+        /// 3 * <i>stdev</i> * 2 + 1, which means each smoothed value takes this many resampled values into
+        /// account according to the weighting given by the kernel at each position.
+        /// </summary>
+        private const int GaussianStdDev = 5; // 3*(5)*2+1 = 31 kernel size.
+
+        /// <summary>
+        /// The weighting kernel to be used as a 1D convolution filter. The kernel size is based on
+        /// the standard deviation of a Gaussian curve, which reaches zero at about 3 times this
+        /// value.
+        /// </summary>
+        private static readonly double[] Kernel;
+        #endregion
+
+        #region Constructor
+
+        /// <summary>
+        /// Private static constructor for the entire class.
+        /// </summary>
+        static MovementData()
+        {
+            Kernel = SeriesEx.GaussianKernel(GaussianStdDev);
+        }
+
+        /// <summary>
+        /// Constructor for a DataMovement instance. 
+        /// </summary>
+        /// <param name="owner">The trial to which this movement belongs.</param>
+        public MovementData(TrialData owner)
+        {
+            _moves = new List<TimePointR>(128);
+            _owner = owner;
+        }
+
+        /// <summary>
+        /// Gets the trial that owns this movement.
+        /// </summary>
+        public TrialData Owner
+        {
+            get { return _owner; }
+        }
+
+        #endregion
+
+        #region Properties: [], NumMoves, Travel, Duration
+
+        /// <summary>
+        /// Gets or sets the TimePointF at the given index.
+        /// </summary>
+        /// <param name="index">A 0-based index of the movement TimePointF to get or set.</param>
+        /// <returns>The TimePointF at the given index.</returns>
+        /// <remarks>Throws an exception if <i>index</i> is out of bounds.</remarks>
+        public TimePointR this[int index]
+        {
+            get
+            {
+                return _moves[index]; // let it throw any exceptions
+            }
+            set
+            {
+                _moves[index] = value; // let it throw any exceptions
+            }
+        }
+
+        public int NumMoves { get { return _moves.Count; ; } }
 
         /// <summary>
         /// Gets the total distance traveled during movement.
         /// </summary>
-        public float Travel
+        public double Travel
         {
             get
             {
-                float travel = 0f;
-                for (int i = 1; i < NumMoves; i++)
-                    travel += Vector2.Distance(mousePos[i], mousePos[i - 1]);
-                return travel;
+                double dx = 0.0;
+                for (int i = 1; i < _moves.Count; i++)
+                {
+                    dx += PointR.Distance((PointR)_moves[i - 1], (PointR)_moves[i]);
+                }
+                return dx;
             }
         }
 
@@ -97,51 +177,161 @@ namespace Data
         {
             get
             {
-                if (time != null || time.Count > 0)
-                    return time[time.Count - 1] - time[0];
-                else return 0L;
+                if (_moves.Count > 0)
+                {
+                    TimePointR first = _moves[0];
+                    TimePointR last = _moves[_moves.Count - 1];
+                    return (last.Time - first.Time);
+                }
+                return 0L;
             }
         }
+
         #endregion
 
-        public void AddMove(Vector2 pos, TimeL t)
+        #region Methods: Clear, AddMove, NormalizeTimes
+        /// <summary>
+        /// Normalizes the timestamps of the movement points relative to a base time.
+        /// </summary>
+        /// <param name="normTo">The base time against which to normalize the movement points.</param>
+        public void NormalizeTimes(long normTo)
         {
-            // 마우스 움직임 X -> 시간만 업데이트
-            if (mousePos.Count > 0 && mousePos[mousePos.Count - 1] == pos)
+            for (int i = 0; i < _moves.Count; i++)
             {
-                time.RemoveAt(time.Count - 1);
-                time.Add(t);
-            }
-            else
-            {
-                mousePos.Add(pos);
-                time.Add(t);
+                _moves[i] = new TimePointR(_moves[i].X, _moves[i].Y, _moves[i].Time - normTo);
             }
         }
 
-        public void AddMove(float x, float y, TimeL t)
+        public void AddMove(TimePointR pt)
         {
-            Vector2 pos = new Vector2(x, y);
-            AddMove(pos, t);
+            if (_moves.Count > 0 && _moves[_moves.Count - 1] == pt)
+            {
+                _moves.RemoveAt(_moves.Count - 1);
+            }
+            _moves.Add(pt);
         }
 
         public void ClearMoves()
         {
-            mousePos.Clear();
-            time.Clear();
-            
+            _moves.Clear();
+
         }
-        /*
+        #endregion
+
+        #region Submovement Processing
+
+        /// <summary>
+        /// Temporally resamples the movement at 100 Hz, and then produces the position, velocity, acceleration, 
+        /// and jerk profiles that accompany it. Note that the position profile are TimePoints, and the derivative
+        /// profiles are PointF time series.
+        /// </summary>
+        /// <returns>The velocity, acceleration, and jerk submovement profiles from the resampled movement.</returns>
         public Profiles CreateResampledProfiles()
         {
-            if (NumMoves == 0)
+            if (_moves.Count == 0)
                 return Profiles.Empty;
 
+            // Resampled position, velocity, acceleration, jerk
             Profiles resampled;
+            resampled.Position = SeriesEx.ResampleInTime(_moves, Hertz);
+            resampled.Velocity = SeriesEx.Derivative(resampled.Position);
+            resampled.Acceleration = SeriesEx.Derivative(resampled.Velocity);
+            resampled.Jerk = SeriesEx.Derivative(resampled.Acceleration);
+
+            return resampled;
         }
 
-        #region IXmlLoggable Members
+        /// <summary>
+        /// First, temporally resample the movement at 100 Hz. Second, compute the submovement profiles 
+        /// for velocity, acceleration, and jerk. Third, smooth these profiles using a 1D Gaussian convolution 
+        /// filter.
+        /// </summary>
+        /// <returns>This movement smoothed over time.</returns>
+        /// <remarks>Smoothing velocity, acceleration, and jerk amounts to smoothing 1D time series. But
+        /// position is a 2D time series, and although its x-coords and y-coords can be smoothed independently,
+        /// bad artifacts occur at the beginnings and ends. These can be ameliorated by extending the first
+        /// and last values position values in the series so that the kernel overlaps them during smoothing.
+        /// </remarks>
+        public Profiles CreateSmoothedProfiles()
+        {
+            //
+            // Resample to get the submovement profiles with temporally-evenly spaced points. This
+            // is a necessary step before applying the Gaussian convolution filter, since intervals
+            // should be evenly spaced.
+            //
+            Profiles resampled = CreateResampledProfiles();
+            if (resampled.IsEmpty)
+                return Profiles.Empty;
 
+            //
+            // Now smooth the resampled submovement profiles.
+            //
+            Profiles smoothed;
+            int halfLen = Kernel.Length / 2;
+
+            //
+            // To smooth position with 1D filter, we have to smooth the (x,y) coordinates independently. 
+            // This works fine except at either end of the profile, where it causes major departures. So
+            // we must extend the profile at the head and tail to reduce this problem.
+            //
+            List<PointR> posx = new List<PointR>(resampled.Position.Count + Kernel.Length);
+            List<PointR> posy = new List<PointR>(resampled.Position.Count + Kernel.Length);
+
+            for (int i = 0; i < halfLen; i++) // extend first value
+            {
+                posx.Add(new PointR(0, resampled.Position[0].X));
+                posy.Add(new PointR(0, resampled.Position[0].Y));
+            }
+            for (int i = 0; i < resampled.Position.Count; i++) // add actual values
+            {
+                posx.Add(new PointR(resampled.Position[i].Time, resampled.Position[i].X));
+                posy.Add(new PointR(resampled.Position[i].Time, resampled.Position[i].Y));
+            }
+            for (int i = 0; i < halfLen; i++) // extend last value
+            {
+                posx.Add(new PointR(0, resampled.Position[resampled.Position.Count - 1].X));
+                posy.Add(new PointR(0, resampled.Position[resampled.Position.Count - 1].Y));
+            }
+
+            posx = SeriesEx.Filter(posx, Kernel); // smooth x-values
+            posy = SeriesEx.Filter(posy, Kernel); // smooth y-values
+
+            smoothed.Position = new List<TimePointR>(resampled.Position.Count); // reassemble the (x,y) points
+            for (int i = halfLen; i < resampled.Position.Count + halfLen; i++)
+            {
+                smoothed.Position.Add(new TimePointR(posx[i].Y, posy[i].Y, resampled.Position[i - halfLen].Time));
+            }
+
+            //
+            // Smooth the derivative resampled time series to create the smoothed velocity, acceleration, and jerk profiles.
+            //
+            smoothed.Velocity = SeriesEx.Filter(resampled.Velocity, Kernel);
+            smoothed.Acceleration = SeriesEx.Filter(resampled.Acceleration, Kernel);
+            smoothed.Jerk = SeriesEx.Filter(resampled.Jerk, Kernel);
+
+            return smoothed;
+        }
+
+        /// <summary>
+        /// Calculates the number of submovements in this movement. The number of submovements is defined
+        /// by the number of velocity peaks in the smoothed velocity profile. The profile is obtained after
+        /// resampling at 100 Hz and smoothing using a Gaussian convolution filter with a standard deviation 
+        /// of 3.
+        /// </summary>
+        /// <returns>The number of submovements defined by peaks in the smoothed velocity profile.</returns>
+        public int GetNumSubmovements()
+        {
+            Profiles smoothed = CreateSmoothedProfiles();
+            if (smoothed.IsEmpty)
+                return -1;
+
+            int[] maxima = SeriesEx.Maxima(smoothed.Velocity, 0, -1);
+            return maxima.Length;
+        }
+
+        #endregion
+
+        #region IXmlLoggable Members
         public bool WriteXmlHeader(XmlTextWriter writer)
         {
             writer.WriteStartElement("Movement");
@@ -172,13 +362,19 @@ namespace Data
             }
 
             // write out all of MacKenzie's path analysis measures
-            PathAnalyses analyses = DoPathAnalyses((PointR)_owner.Start, _owner.TargetCenterFromStart);
-            writer.WriteAttributeString("taskAxisCrossings", XmlConvert.ToString(analyses.TaskAxisCrossings));
-            writer.WriteAttributeString("movementDirectionChanges", XmlConvert.ToString(analyses.MovementDirectionChanges));
-            writer.WriteAttributeString("orthogonalDirectionChanges", XmlConvert.ToString(analyses.OrthogonalDirectionChanges));
-            writer.WriteAttributeString("movementVariability", XmlConvert.ToString(Math.Round(analyses.MovementVariability, 4)));
-            writer.WriteAttributeString("movementError", XmlConvert.ToString(Math.Round(analyses.MovementError, 4)));
-            writer.WriteAttributeString("movementOffset", XmlConvert.ToString(Math.Round(analyses.MovementOffset, 4)));
+            //PathAnalyses analyses = DoPathAnalyses((PointR)_owner.Start, _owner.TargetCenterFromStart);
+            //writer.WriteAttributeString("taskAxisCrossings", XmlConvert.ToString(analyses.TaskAxisCrossings));
+            //writer.WriteAttributeString("movementDirectionChanges", XmlConvert.ToString(analyses.MovementDirectionChanges));
+            //writer.WriteAttributeString("orthogonalDirectionChanges", XmlConvert.ToString(analyses.OrthogonalDirectionChanges));
+            //writer.WriteAttributeString("movementVariability", XmlConvert.ToString(Math.Round(analyses.MovementVariability, 4)));
+            //writer.WriteAttributeString("movementError", XmlConvert.ToString(Math.Round(analyses.MovementError, 4)));
+            //writer.WriteAttributeString("movementOffset", XmlConvert.ToString(Math.Round(analyses.MovementOffset, 4)));
+            writer.WriteAttributeString("taskAxisCrossings", XmlConvert.ToString(0));
+            writer.WriteAttributeString("movementDirectionChanges", XmlConvert.ToString(0));
+            writer.WriteAttributeString("orthogonalDirectionChanges", XmlConvert.ToString(0));
+            writer.WriteAttributeString("movementVariability", XmlConvert.ToString(0));
+            writer.WriteAttributeString("movementError", XmlConvert.ToString(0));
+            writer.WriteAttributeString("movementOffset", XmlConvert.ToString(0));
 
             // write out all the mouse move points that make up this trial
             int i = 0;
@@ -195,8 +391,63 @@ namespace Data
             return true;
         }
 
+        /// <summary>
+        /// Writes any closing XML necessary for this data object. This method can simply
+        /// return <b>true</b> if all data was already written in the header.
+        /// </summary>
+        /// <param name="writer">An open XML writer. The writer will be closed by this method
+        /// after writing.</param>
+        /// <returns>Returns <b>true</b> if successful; <b>false</b> otherwise.</returns>
+        public bool WriteXmlFooter(XmlTextWriter writer)
+        {
+            return true; // do nothing
+        }
+
+        /// <summary>
+        /// Reads a data object from XML and returns an instance of the object.
+        /// </summary>
+        /// <param name="reader">An open XML reader. The reader will be closed by this
+        /// method after reading.</param>
+        /// <returns>Returns <b>true</b> if successful; <b>false</b> otherwise.</returns>
+        /// <remarks>Clients should first create a new instance using a default constructor, and then
+        /// call this method to populate the data fields of the default instance.</remarks>
+        public bool ReadFromXml(XmlTextReader reader)
+        {
+            reader.Read(); // <Movement>
+            if (reader.Name != "Movement")
+                throw new XmlException("XML format error: Expected the <Movement> tag.");
+
+            int count = XmlConvert.ToInt32(reader.GetAttribute("count"));
+            _moves = new List<TimePointR>(count);
+
+            // read in the moves and add it to the movement
+            for (int i = 0; i < count; i++)
+            {
+                reader.Read(); // <move>
+                if (reader.Name != "move")
+                    throw new XmlException("XML format error: Expected the <move> tag.");
+                TimePointR pt = TimePointR.FromString(reader.GetAttribute("point"));
+                this.AddMove(pt);
+            }
+
+            reader.Read(); // </Movement>
+            if (reader.Name != "Movement" || reader.NodeType != XmlNodeType.EndElement)
+                throw new XmlException("XML format error: Expected the </Movement> tag.");
+
+            return true;
+        }
+
+        /// <summary>
+        /// Performs any analyses on this data object and writes the results to a comma-delimitted
+        /// file for subsequent copy-and-pasting into a spreadsheet like Microsoft Excel or SAS JMP.
+        /// </summary>
+        /// <param name="writer">An open stream writer pointed to a text file. The writer will be closed 
+        /// by this method after writing.</param>
+        /// <returns>True if writing is successful; false otherwise.</returns>
+        public bool WriteResultsToTxt(StreamWriter writer)
+        {
+            return true; // do nothing
+        }
         #endregion
-        */
     }
 }
-
