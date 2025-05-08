@@ -45,12 +45,6 @@ namespace Data
 {
     public class TrialData
     {
-        #region Import High Resolution Timer Function
-        [DllImport("kernel32.dll")]
-        private static extern bool QueryPerformanceFrequency(out long lpFrequency);
-        [DllImport("kernel32.dll")]
-        private static extern bool QueryPerformanceCounter(out long lpPerformanceCount);
-        #endregion
 
         protected int _number; // 1-based number of this trial; trial 0 is reserved for the start area for the condition
         protected bool _practice; // true if this is a practice trial; false otherwise

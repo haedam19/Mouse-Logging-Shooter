@@ -37,26 +37,41 @@
 **/
 using System.Collections;
 using System.Collections.Generic;
+using System.Xml;
 using UnityEngine;
-using UnityEngine.UIElements;
+using TimeL = System.Int64;
 
 namespace Data
 {
     public class MovementData
     {
+        #region Types
         public struct Profiles
         {
             public static readonly Profiles Empty;
             public bool IsEmpty { get { return Position == null && Velocity == null && Acceleration == null && Jerk == null; } }
-            public List<float> timeStamp;
+            public List<TimeL> timeStamp;
             public List<Vector2> Position;
             public List<Vector2> Velocity;
             public List<Vector2> Acceleration;
             public List<Vector2> Jerk;
         }
 
+        /// <summary>
+        /// <para> A structure containing the six path analysis measures defined by MacKenzie et al. (CHI 2001). </para>
+        /// </summary>
+        public struct PathAnalyses
+        {
+            public static readonly PathAnalyses Empty;
+            public bool IsEmpty { get { return MovementVariability == 0.0 && MovementError == 0.0 && MovementOffset == 0.0; } }
+            public double MovementVariability;
+            public double MovementError;
+            public double MovementOffset;
+        }
+        #endregion
+        private TrialData _owner;
         public List<Vector2> mousePos;
-        public List<long> time; // ms 단위
+        public List<TimeL> time; // ms 단위
 
         #region Properties: NumMoves, Travel, Duration
         public int NumMoves { get { return mousePos.Count; } }
@@ -89,9 +104,7 @@ namespace Data
         }
         #endregion
 
-        /// <param name="pos">좌하단 원점 기준</param>
-        /// <param name="t">Trial 시작 시점을 기준, PerformanceCounter 단위로 기록합니다.</param>
-        public void AddMove(Vector2 pos, long t)
+        public void AddMove(Vector2 pos, TimeL t)
         {
             // 마우스 움직임 X -> 시간만 업데이트
             if (mousePos.Count > 0 && mousePos[mousePos.Count - 1] == pos)
@@ -106,12 +119,84 @@ namespace Data
             }
         }
 
+        public void AddMove(float x, float y, TimeL t)
+        {
+            Vector2 pos = new Vector2(x, y);
+            AddMove(pos, t);
+        }
+
         public void ClearMoves()
         {
             mousePos.Clear();
             time.Clear();
             
         }
+        /*
+        public Profiles CreateResampledProfiles()
+        {
+            if (NumMoves == 0)
+                return Profiles.Empty;
+
+            Profiles resampled;
+        }
+
+        #region IXmlLoggable Members
+
+        public bool WriteXmlHeader(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("Movement");
+            writer.WriteAttributeString("count", XmlConvert.ToString(NumMoves));
+            writer.WriteAttributeString("travel", XmlConvert.ToString(System.Math.Round(Travel, 4)));
+            writer.WriteAttributeString("duration", XmlConvert.ToString(Duration));
+
+            // write out the submovement information
+            Profiles resampled = CreateResampledProfiles();
+            if (resampled.IsEmpty) // this can happen if the trial is terminated prematurely
+            {
+                writer.WriteAttributeString("submovements", XmlConvert.ToString(0));
+                writer.WriteAttributeString("maxVelocity", PointR.Empty.ToString());
+                writer.WriteAttributeString("maxAcceleration", PointR.Empty.ToString());
+                writer.WriteAttributeString("maxJerk", PointR.Empty.ToString());
+            }
+            else
+            {
+                int nsub = GetNumSubmovements(); // from smoothed velocity profile
+                int vidx = SeriesEx.Max(resampled.Velocity, 0, -1);
+                int aidx = SeriesEx.Max(resampled.Acceleration, 0, -1);
+                int jidx = SeriesEx.Max(resampled.Jerk, 0, -1);
+
+                writer.WriteAttributeString("submovements", XmlConvert.ToString(nsub));
+                writer.WriteAttributeString("maxVelocity", resampled.Velocity[vidx].ToString());
+                writer.WriteAttributeString("maxAcceleration", resampled.Acceleration[aidx].ToString());
+                writer.WriteAttributeString("maxJerk", resampled.Jerk[jidx].ToString());
+            }
+
+            // write out all of MacKenzie's path analysis measures
+            PathAnalyses analyses = DoPathAnalyses((PointR)_owner.Start, _owner.TargetCenterFromStart);
+            writer.WriteAttributeString("taskAxisCrossings", XmlConvert.ToString(analyses.TaskAxisCrossings));
+            writer.WriteAttributeString("movementDirectionChanges", XmlConvert.ToString(analyses.MovementDirectionChanges));
+            writer.WriteAttributeString("orthogonalDirectionChanges", XmlConvert.ToString(analyses.OrthogonalDirectionChanges));
+            writer.WriteAttributeString("movementVariability", XmlConvert.ToString(Math.Round(analyses.MovementVariability, 4)));
+            writer.WriteAttributeString("movementError", XmlConvert.ToString(Math.Round(analyses.MovementError, 4)));
+            writer.WriteAttributeString("movementOffset", XmlConvert.ToString(Math.Round(analyses.MovementOffset, 4)));
+
+            // write out all the mouse move points that make up this trial
+            int i = 0;
+            foreach (TimePointR pt in _moves)
+            {
+                writer.WriteStartElement("move");
+                writer.WriteAttributeString("index", XmlConvert.ToString(i++));
+                writer.WriteAttributeString("point", pt.ToString());
+                writer.WriteEndElement(); // </move>
+            }
+
+            writer.WriteEndElement(); // </Movement>
+
+            return true;
+        }
+
+        #endregion
+        */
     }
 }
 
