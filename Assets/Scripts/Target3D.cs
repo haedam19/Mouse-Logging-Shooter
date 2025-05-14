@@ -45,4 +45,9 @@ public class Target3D : MonoBehaviour
         m_renderer.material = m_offMaterial;
         m_collider.enabled = false;
     }
+
+    public bool Contains(PointR p)
+    {
+        return PointR.Distance(Center, p) <= radius;
+    }
 }

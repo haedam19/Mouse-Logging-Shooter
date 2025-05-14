@@ -42,7 +42,7 @@ using System.Xml;
 using UnityEngine;
 using TimeL = System.Int64;
 
-namespace Data
+namespace MouseLog
 {
     public class MovementData: IXmlLoggable
     {

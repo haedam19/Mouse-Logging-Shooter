@@ -38,7 +38,7 @@
 using System.IO;
 using System.Xml;
 
-namespace Data
+namespace MouseLog
 {
     /// <summary>
     /// Defines an interface for an XML log to be used in a user study. A data (model) object

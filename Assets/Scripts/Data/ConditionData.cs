@@ -40,7 +40,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Data
+namespace MouseLog
 {
     /// <summary>
     /// Condition 순서를 무작위로 섞기 위한 임시 구조체입니다.
@@ -64,6 +64,9 @@ namespace Data
         private long _mtpred; // the predicted movement time in milliseconds for this trial
         private long _tAppeared; // the millisecond time-stamp of when this condition appeared to the user
         private List<TrialData> _trials; // the collection of performed trials for this condition
+
+        public int A { get { return _a; } }
+        public int W { get { return _w; } }
 
         public ConditionData(int block, int index, int A, int W, int trials, int practice, bool is2D)
         {
