@@ -13,6 +13,7 @@
 /// 2차원 x, y좌표를 double로 저장합니다.
 /// </summary>
 using System;
+using System.Collections.Generic;
 
 public struct PointR
 {
@@ -127,6 +128,20 @@ public struct PointR
         empty.X = (p.X - c.X) * Math.Cos(radians) - (p.Y - c.Y) * Math.Sin(radians) + c.X;
         empty.Y = (p.X - c.X) * Math.Sin(radians) + (p.Y - c.Y) * Math.Cos(radians) + c.Y;
         return empty;
+    }
+
+    /// <summary> 점들의 무게중심을 구합니다. </summary>
+    public static PointR Centroid(List<PointR> points)
+    {
+        double num = 0.0;
+        double num2 = 0.0;
+        foreach (PointR point in points)
+        {
+            num += point.X;
+            num2 += point.Y;
+        }
+
+        return new PointR(num / (double)points.Count, num2 / (double)points.Count);
     }
 
     public static bool operator ==(PointR p1, PointR p2)

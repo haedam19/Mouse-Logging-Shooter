@@ -27,8 +27,9 @@ public class TargetManager3D : MonoBehaviour
         transform.position = new Vector3(0f, 0f, distanceToCamera);
     }
 
-    public void SpawnTargets(int targetCount, ConditionConfig condition)
+    public List<Target3D> SpawnTargets(int targetCount, ConditionConfig condition)
     {
+        List<Target3D> targets = new List<Target3D>(targetCount);
         m_A = condition.A;
         m_W = condition.W;
 
@@ -80,6 +81,8 @@ public class TargetManager3D : MonoBehaviour
         m_currentTarget = 0;
         GameManager3D.Instance.trialIndex = 0;
         targetInstances[0].GetComponent<Target3D>().TargetOn();
+
+        return targets;
     }
 
 }

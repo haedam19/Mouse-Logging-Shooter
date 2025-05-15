@@ -3,14 +3,11 @@ using UnityEngine.InputSystem;
 
 public class FirsetPersonLook : MonoBehaviour
 {
-    [SerializeField] private float sensitivity = 100f;
-
     private Mouse Mouse { get { return Mouse.current; } }
 
-    ControlDisplayGain gain;
+    public ControlDisplayGain gain;
 
-    private float pitch = 0f;
-    private float yaw = 0f;
+    private float _d; // 가상 스크린과 카메라 사이의 거리
 
     // Fields for Update Method. 마우스 입력 데이터 처리에 사용.
     private Vector2 _delta; // InputSystem을 통해 받은 delta 값
@@ -21,6 +18,7 @@ public class FirsetPersonLook : MonoBehaviour
 
     private void Awake()
     {
+        _d = Screen.height / (2 * Mathf.Tan(Camera.main.fieldOfView * Mathf.Deg2Rad / 2));
         gain = new ControlDisplayGain(ControlDisplayGain.Type.linear, 1f);
     }
 
@@ -45,16 +43,13 @@ public class FirsetPersonLook : MonoBehaviour
     {
         // Get mouse input data
         _delta = Mouse.delta.ReadValue(); // WM_INPUT 메시지 이용, count 단위로 측정
-        _gDelta = gain.GainedDelta(_delta); // CD Gain 적용
+        _gDelta = gain.GainedDelta(_delta); // CD Gain 적용한 delta, subpixel까지 계산됨(소수점 아래 단위 측정)
         _lastPos = _currentPos;
         _currentPos += _gDelta;
         _isClicked = Mouse.press.wasPressedThisFrame;
 
-        // 카메라 이동 처리
-        yaw += 0.0476f * _currentPos.x;
-        pitch -= 30 * _gDelta.y;
-        yaw = Mathf.Clamp(yaw, -60f, 60f);
-        pitch = Mathf.Clamp(pitch, -90f, 90f);
+        // 카메라가 잠정적 커서 위치를 바라보도록 회전
+        transform.LookAt(new Vector3(_currentPos.x, _currentPos.y, _d));
 
         // 마우스 움직임 이벤트 발생
         if (_delta.sqrMagnitude > 0)
@@ -74,9 +69,5 @@ public class FirsetPersonLook : MonoBehaviour
                 , 1e3f, LayerMask.NameToLayer("Target"));
             GameManager3D.Instance.MouseClick(_currentPos, hit, hitInfo);
         }
-
-        
-
-        transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
     }
 }

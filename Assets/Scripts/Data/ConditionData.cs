@@ -38,6 +38,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 namespace MouseLog
@@ -66,8 +67,6 @@ namespace MouseLog
         private long _tAppeared; // the millisecond time-stamp of when this condition appeared to the user
         private List<TrialData> _trials; // the collection of performed trials for this condition
 
-        public int A { get { return _a; } }
-        public int W { get { return _w; } }
         #endregion
 
         #region Constructor
@@ -86,23 +85,436 @@ namespace MouseLog
             _mtpred = MTpred;
             long mt = (_mtpct != -1.0) ? (long)(_mtpct * _mtpred) : -1L;
 
-            // 원본에서는 1D vs 2D 차이에 따라 달라졌지만 여기선 항상 2D
-            GameManager3D.Instance.targetManager.SpawnTargets(trials, new ConditionConfig(A, W));
+            PointR center = new PointR((double)Screen.width / 2, (double)Screen.height / 2);
 
+            // 원본에서는 1D vs 2D 차이에 따라 달라졌지만 여기선 항상 2D
+            List<Target3D> targets = GameManager3D.Instance.targetManager.SpawnTargets(trials, new ConditionConfig(A, W));
+
+            // TODO: order the targets appropriately according to the ISO 9241-9 standard #########################################33
+
+            // Create the trial instances that represent the trials with the given targets. This includes
+            // creating the special start-area trial at index 0 in the condition representing the starting
+            // area that, when clicked, starts the actual trials.
             _trials = new List<TrialData>(trials + 1);
             TrialData td;
             for(int i = 0; i < trials + 1; i++)
             {
-                //td = new TrialData(i, i <= practice, )
+                td = new TrialData(i, i <= practice, i == 0 ? null : targets[i - 1], targets[i], center, mt);
+                _trials.Add(td);
             }
         }
 
         #endregion
 
-        public void AddMove(Vector2 pos)
+        #region Trials
+        public TrialData this[int number]
         {
-
+            get
+            {
+                if (0 <= number && number < _trials.Count)
+                {
+                    return _trials[number];
+                }
+                return null;
+            }
         }
+
+        /// <summary>
+        /// Clears all the trial data currently stored by this condition, if any. Does not clear
+        /// the trial condition values that specify the trials.
+        /// </summary>
+        public void ClearTrialData()
+        {
+            for (int i = 1; i < _trials.Count; i++)
+                _trials[i].ClearData();
+        }
+
+        public int NumTrials { get { return _trials.Count - 1; } } // index 0은 시작 trial이므로 제외
+
+        public int NumTestTrials
+        {
+            get
+            {
+                int num = 0;
+                for (int i = 1; i < _trials.Count; i++) // start past the start area trial
+                {
+                    if (!_trials[i].IsPractice)
+                        num++;
+                }
+                return num;
+            }
+        }
+
+        /// <summary>
+        /// Gets the number of completed trials in this condition. This does not include the special start 
+        /// area trial occupying index 0.
+        /// </summary>
+        public int NumCompletedTrials
+        {
+            get
+            {
+                int num = 0;
+                for (int i = 1; i < _trials.Count; i++) // start past the start area trial
+                {
+                    if (_trials[i].IsComplete)
+                        num++;
+                }
+                return num;
+            }
+        }
+
+        /// <summary>
+        /// Gets the number of completed test trials in this condition. This does not include the 
+        /// special start area trial occupying index 0.
+        /// </summary>
+        public int NumCompletedTestTrials
+        {
+            get
+            {
+                int num = 0;
+                for (int i = 1; i < _trials.Count; i++) // start past the start area trial
+                {
+                    if (!_trials[i].IsPractice && _trials[i].IsComplete)
+                        num++;
+                }
+                return num;
+            }
+        }
+        #endregion
+
+        #region Condition Values
+        //  해당 region은 원본 코드 원문 100% 재사용
+
+        /// <summary>
+        /// Gets the 0-based block index number.
+        /// </summary>
+        public int Block
+        {
+            get { return _block; }
+        }
+
+        /// <summary>
+        /// Gets the 0-based condition index number within its block. Condition at index 0 is a valid condition.
+        /// </summary>
+        public int Index
+        {
+            get { return _index; }
+        }
+
+        /// <summary>
+        /// Gets whether or not the trials in this condition are 2D circles in the
+        /// ISO 9241-9 standard pattern, or vertical ribbons in the Fitts' traditional
+        /// horizontal 1D task.
+        /// </summary>
+        public bool Is2D
+        {
+            get { return _circular; }
+        }
+
+        /// <summary>
+        /// Gets whether or not this condition used a metronome to govern movement time as an
+        /// independent variable.
+        /// </summary>
+        public bool UsedMetronome
+        {
+            get { return _mtpct != -1.0; }
+        }
+
+        /// <summary>
+        /// Gets the nominal movement amplitude for trials in this condition. All trials in this
+        /// condition contain targets that exhibit this amplitude.
+        /// </summary>
+        public int A
+        {
+            get { return _a; }
+        }
+
+        /// <summary>
+        /// Gets the nominal target size for trials in this condition. All trials in this
+        /// condition contain targets that exhibit this width.
+        /// </summary>
+        public int W
+        {
+            get { return _w; }
+        }
+
+        /// <summary>
+        /// Gets the nominal index of difficulty for this condition. All trials in this
+        /// condition contain targets that exhibit this index of difficulty. It has units 
+        /// in "bits."
+        /// </summary>
+        public double ID
+        {
+            get
+            {
+                return Math.Log((double)_a / _w + 1.0, 2.0);
+            }
+        }
+
+        /// <summary>
+        /// Gets the movement time percent (MT%) for trials in this condition. This value
+        /// is an independent variable just like A or W. It represents the percentage of
+        /// the Fitts' law-predicted MT that these trials would require. This predicted 
+        /// value is multiplied by MT% to discover the raw movement time. Using MT% rather 
+        /// than a raw MT as the independent variable allows MT% to be crossed with any 
+        /// number of A's and W's. This value is -1.0 if this condition does not use a
+        /// metronome.
+        /// </summary>
+        /// <example>
+        /// Let MT% = 0.90 and MTPred = 2000 ms. The raw MT is therefore 0.90 * 2000 = 1800 ms, or 10% 
+        /// faster than the predicted movement time.
+        /// </example>
+        public double MTPct
+        {
+            get { return _mtpct; }
+        }
+
+        /// <summary>
+        /// Gets the Fitts' law-predicted movement time in milliseconds for trials in this condition, 
+        /// using the formula MTPred = a + b log2(A/W + 1). The MT% independent variable is multiplied 
+        /// by this value to compute the raw normative movement time that is used by the metronome.
+        /// This value is -1L if this condition does not use a metronome.
+        /// </summary>
+        /// <example>
+        /// Let MT% = 0.90 and MTPred = 2000 ms. The raw MT is therefore 0.90 * 2000 = 1800 ms, or 10% 
+        /// faster than the predicted movement time.
+        /// </example>
+        public long MTPred
+        {
+            get { return _mtpred; }
+        }
+
+        /// <summary>
+        /// Gets the normative raw movement time in milliseconds for trials in this condition, 
+        /// or -1L if this condition does not use a metronome.
+        /// </summary>
+        /// <example>
+        /// Let MT% = 0.90 and MTPred = 2000 ms. The raw MT is therefore 0.90 * 2000 = 1800 ms, or 10% 
+        /// faster than the predicted movement time.
+        /// </example>
+        public long MT
+        {
+            get
+            {
+                if (_mtpct != -1.0 && _mtpred != 1L)
+                {
+                    return (long)(_mtpct * _mtpred);
+                }
+                return -1L;
+            }
+        }
+
+        #endregion
+
+        #region Measured Values
+        /// <summary>
+        /// Gets the effective movement amplitude for completed trials in this condition. The
+        /// effective movement amplitude is the average of the actual movement distances 
+        /// of the trials in this condition.
+        /// </summary>
+        /// <remarks>Spatial outliers are excluded from this calculation so that the
+        /// measure remains consistent with its counterpart, We.</remarks>
+        public double GetAe(bool bivariate)
+        {
+            int trials = 0;
+            double ae = 0.0;
+
+            if (bivariate && !_circular)
+                return 0.0;
+
+            for (int i = 1; i < _trials.Count; i++) // start beyond the special start-area trial
+            {
+                if (!_trials[i].IsPractice && _trials[i].IsComplete && !_trials[i].IsSpatialOutlier)
+                {
+                    ae += _trials[i].GetAe(bivariate);
+                    trials++;
+                }
+            }
+            return (trials > 0) ? ae / trials : 0.0;
+        }
+        /// <summary>
+        /// Computes the endpoint deviation of the trials in this condition. For ribbon targets, the univariate
+        /// result is the standard deviation of x-coordinates. The bivariate result is undefined. For circle 
+        /// targets, the univariate result is the standard deviation of x-coordinates. The bivariate result is
+        /// the deviation of points around the centroid.
+        /// </summary>
+        /// <param name="bivariate">If true, a result considering deviation in both x- and y-dimensions is given.
+        /// If false, only the deviation in x, defined as "along the task axis," is given.</param>
+        /// <returns>The endpoint deviation for normalized trials in this condition.</returns>
+        /// <remarks>Spatial outliers are excluded from this calculation so that the
+        /// measure remains consistent with its counterpart, We.</remarks>
+        public double GetSD(bool bivariate)
+        {
+            double stdev = 0.0;
+
+            // compute the normalized endpoint locations for each trial in this condition
+            List<PointR> pts = new List<PointR>(_trials.Count);
+            for (int i = 0; i < _trials.Count; i++)
+            {
+                if (!_trials[i].IsPractice && _trials[i].IsComplete && !_trials[i].IsSpatialOutlier)
+                {
+                    pts.Add(_trials[i].NormalizedEnd); // normalized selection endpoints
+                }
+            }
+
+            // compute the desired endpoint deviation
+            if (pts.Count > 0)
+            {
+                if (bivariate)
+                {
+                    stdev = _circular ? StatsEx.StdDev2D(pts) : 0.0; // 0.0 is for ribbon task--no bivariate deviation
+                }
+                else
+                {
+                    double[] dxs = new double[pts.Count];
+                    for (int j = 0; j < pts.Count; j++)
+                        dxs[j] = pts[j].X;
+                    stdev = StatsEx.StdDev(dxs); // stdev in x-dimension only
+                }
+            }
+            return stdev;
+        }
+
+        /// <summary>
+        /// Compues Crossman's (1957) effective target width, which reflects the endpoint deviation
+        /// around the target and is used to normalize for subjects' speed-accuracy biases.
+        /// </summary>
+        /// <param name="bivariate">If true, a result considering deviation in both x- and y-dimensions is given.
+        /// If false, only the deviation in x, defined as "along the task axis," is given.</param>
+        /// <returns>The effective target width based on the endpoint distribution for this condition.</returns>
+        public double GetWe(bool bivariate)
+        {
+            return (_circular || !bivariate) ? 4.133 * this.GetSD(bivariate) : 0.0;
+        }
+
+        /// <summary>
+        /// Gets the effective index of difficulty based on trials and movement times in this
+        /// condition.
+        /// </summary>
+        /// <param name="bivariate">If true, a result considering deviation in both x- and y-dimensions is given.
+        /// If false, only the deviation in x, defined as "along the task axis," is given.</param>
+        /// <returns>The effective difficulty of this task based on target utilization.</returns>
+        public double GetIDe(bool bivariate)
+        {
+            double ae = this.GetAe(bivariate);
+            double we = this.GetWe(bivariate);
+            if (ae > 0.0 && we > 0.0)
+            {
+                return Math.Log(ae / we + 1.0, 2.0);
+            }
+            return 0.0;
+        }
+
+        /// <summary>
+        /// Gets the Fitts' law throughput based on the speed and accuracy of trials in this condition.
+        /// </summary>
+        /// <param name="bivariate">If true, a result considering deviation in both x- and y-dimensions is given.
+        /// If false, only the deviation in x, defined as "along the task axis," is given.</param>
+        /// <returns>The throughput for this condition in bits/s.</returns>
+        public double GetTP(bool bivariate)
+        {
+            long mte = this.GetMTe(ExcludeOutliersType.Spatial);
+            if (mte != 0L)
+            {
+                double sec = mte / 1000.0;
+                return (this.GetIDe(bivariate) / sec);
+            }
+            return 0.0;
+        }
+
+        /// <summary>
+        /// Gets the average movement time in milliseconds of completed trials in this condition.
+        /// </summary>
+        /// <param name="ex">Indicates which types of outliers, spatial or temporal (or both) are excluded.</param>
+        /// <returns>The effective movement time in milliseconds.</returns>
+        public long GetMTe(ExcludeOutliersType ex)
+        {
+            int trials = 0;
+            long mte = 0L;
+
+            for (int i = 1; i < _trials.Count; i++) // start beyond the special start-area trial
+            {
+                if (!_trials[i].IsPractice && _trials[i].IsComplete
+                    && ((ex & ExcludeOutliersType.Spatial) == 0 || !_trials[i].IsSpatialOutlier)
+                    && ((ex & ExcludeOutliersType.Temporal) == 0 || !_trials[i].IsTemporalOutlier))
+                {
+                    mte += _trials[i].MTe;
+                    trials++;
+                }
+            }
+            return (trials > 0) ? mte / trials : 0L;
+        }
+
+        /// <summary>
+        /// Gets the number of completed error trials in this condition.
+        /// </summary>
+        /// <param name="ex">Indicates which types of outliers, spatial or temporal (or both) are excluded.</param>
+        /// <returns>The number of error trials in this condition.</returns>
+        public int GetNumErrors(ExcludeOutliersType ex)
+        {
+            int errors = 0;
+            for (int i = 1; i < _trials.Count; i++) // start beyond the special start area trial
+            {
+                if (!_trials[i].IsPractice && _trials[i].IsComplete
+                    && ((ex & ExcludeOutliersType.Spatial) == 0 || !_trials[i].IsSpatialOutlier)
+                    && ((ex & ExcludeOutliersType.Temporal) == 0 || !_trials[i].IsTemporalOutlier))
+                {
+                    if (_trials[i].IsError)
+                    {
+                        errors++;
+                    }
+                }
+            }
+            return errors;
+        }
+
+        /// <summary>
+        /// Gets the rate of errors among completed trials in this condition. The range is 0.0 to 1.00. If 
+        /// outliers are excluded, this is the rate of errors among only those trials that are not outliers.
+        /// </summary>
+        /// <param name="ex">Indicates which types of outliers, spatial or temporal (or both) are excluded.</param>
+        /// <returns>The error rate for trials in this condition.</returns>
+        public double GetErrorRate(ExcludeOutliersType ex)
+        {
+            int errors = 0;
+            int trials = 0;
+
+            for (int i = 1; i < _trials.Count; i++) // start beyond the special start area trial
+            {
+                if (!_trials[i].IsPractice && _trials[i].IsComplete
+                    && ((ex & ExcludeOutliersType.Spatial) == 0 || !_trials[i].IsSpatialOutlier)
+                    && ((ex & ExcludeOutliersType.Temporal) == 0 || !_trials[i].IsTemporalOutlier))
+                {
+                    if (_trials[i].IsError)
+                    {
+                        errors++;
+                    }
+                    trials++;
+                }
+            }
+            return (trials > 0) ? (double)errors / trials : 0.0;
+        }
+
+        /// <summary>
+        /// Gets or sets the millisecond time-stamp indicating the time when this condition was
+        /// presented to the user.
+        /// </summary>
+        /// <remarks>
+        /// This value is not logged or used in condition-level calculations in any way. It is provided
+        /// for convenience for user interface clients (e.g., MainForm).
+        /// </remarks>
+        internal long TAppeared
+        {
+            get
+            {
+                return _tAppeared;
+            }
+            set
+            {
+                _tAppeared = value;
+            }
+        }
+        #endregion
     }
 }
 

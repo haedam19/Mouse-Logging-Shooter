@@ -87,11 +87,32 @@ public class GameManager3D : MonoBehaviour
 
     public void MouseClick(Vector2 pos, bool hitFlag, RaycastHit hitInfo)
     {
-
+        if (_cdata != null)
+        {
+            TimePointR clickTimePos = new TimePointR((double)pos.x, (double)pos.y, Timer.Time);
+            if (_tdata.IsStartAreaTrial || PointR.Distance((PointR)_tdata.Start, (PointR)clickTimePos) > MinDblClickDist)
+            {
+                if (_tdata.IsStartAreaTrial) // click was to begin the first actual trial in the current condition
+                {
+                    if (!_tdata.TargetContains((PointR)clickTimePos)) // click missed start target
+                    {
+                        DoError();
+                    }
+                    else // start first actual trial
+                    {
+                        //_tdata = _cdata[1]; // trial number 1
+                        _tdata.Start = clickTimePos;
+                    }
+                    // Invalidate(); // paint whole form because of START label 
+                }
+            }
+        }
     }
 
     public void MouseMove()
     {
         
     }
+
+    private void DoError() { } // TODO: IMPLEMENT
 }

@@ -1,14 +1,24 @@
+using MouseLog;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class Target3D : MonoBehaviour
 {
+    #region Fields
+    TrialData _tdata = null; // 자신이 타겟이 되는 trial. 몇 번째 trial의 타겟인지 확인하는 데에 사용. 
+    ConditionData _cdata = null; // 속한 condition. 총 trial 수를 확인하는 데에 사용.
+
     [SerializeField] Material m_onMaterial;
     [SerializeField] Material m_offMaterial;
     MeshRenderer m_renderer;
     SphereCollider m_collider;
+
     float radius;
+    public Vector2 posOnScreen;
+    #endregion
+
+    #region Properties: Radius, Center
     public float Radius
     {
         get { return radius; }
@@ -18,14 +28,9 @@ public class Target3D : MonoBehaviour
             transform.localScale = new Vector3(0.1f * value, 0.1f * value, 0.1f * value);
         }
     }
-    public Vector2 posOnScreen;
-    public PointR Center
-    {
-        get
-        {
-            return new PointR(posOnScreen.x, posOnScreen.y);
-        }
-    }
+
+    public PointR Center { get { return new PointR(posOnScreen.x, posOnScreen.y); } }
+    #endregion
 
     void Awake()
     {
@@ -50,4 +55,7 @@ public class Target3D : MonoBehaviour
     {
         return PointR.Distance(Center, p) <= radius;
     }
+
+    public void BindCondition(ConditionData cdata) { _cdata = cdata; }
+    public void BindTrial(TrialData tdata) { _tdata = tdata; }
 }
