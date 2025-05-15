@@ -27,7 +27,7 @@ public class TargetManager3D : MonoBehaviour
         transform.position = new Vector3(0f, 0f, distanceToCamera);
     }
 
-    public void SetTargets(int targetCount, ConditionConfig condition)
+    public void SpawnTargets(int targetCount, ConditionConfig condition)
     {
         m_A = condition.A;
         m_W = condition.W;

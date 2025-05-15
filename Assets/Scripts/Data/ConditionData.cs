@@ -55,6 +55,7 @@ namespace MouseLog
 
     public class ConditionData
     {
+        #region Fields
         private int _block; // the index number of the block to which this condition belongs
         private int _index; // the index number of this condition
         private bool _circular; // circular ISO 9241-9 or vertical ribbons
@@ -67,14 +68,36 @@ namespace MouseLog
 
         public int A { get { return _a; } }
         public int W { get { return _w; } }
+        #endregion
 
-        public ConditionData(int block, int index, int A, int W, int trials, int practice, bool is2D)
+        #region Constructor
+        public ConditionData() { }
+        public ConditionData(int block, int index, int A, int W, double MTpct, long MTpred
+            , int trials, int practice, bool is2D)
         {
             _block = block;
             _index = index;
             _a = A;
             _w = W;
+            _circular = is2D;
+            _tAppeared = -1L;
+
+            _mtpct = MTpct;
+            _mtpred = MTpred;
+            long mt = (_mtpct != -1.0) ? (long)(_mtpct * _mtpred) : -1L;
+
+            // 원본에서는 1D vs 2D 차이에 따라 달라졌지만 여기선 항상 2D
+            GameManager3D.Instance.targetManager.SpawnTargets(trials, new ConditionConfig(A, W));
+
+            _trials = new List<TrialData>(trials + 1);
+            TrialData td;
+            for(int i = 0; i < trials + 1; i++)
+            {
+                //td = new TrialData(i, i <= practice, )
+            }
         }
+
+        #endregion
 
         public void AddMove(Vector2 pos)
         {

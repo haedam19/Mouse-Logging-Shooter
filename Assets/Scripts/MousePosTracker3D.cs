@@ -41,6 +41,6 @@ public class MousePosTracker3D : MonoBehaviour
 
         // Move to Next Trial 
         if (buttonFlag == 1)
-            GameManager3D.Instance.Click();
+            GameManager3D.Instance.MouseClick();
     }
 }

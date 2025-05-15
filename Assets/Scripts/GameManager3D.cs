@@ -4,7 +4,10 @@ using MouseLog;
 using UnityEngine;
 
 public class GameManager3D : MonoBehaviour
-{ 
+{
+    private const double MinDblClickDist = 4.0; // minimum distance two clicks must be apart (filters double-clicks)
+
+    #region Singleton Instance
     static GameManager3D instance;
     public static GameManager3D Instance
     {
@@ -15,6 +18,13 @@ public class GameManager3D : MonoBehaviour
             else
                 return instance;
         }
+    }
+    #endregion
+
+    public enum GameState { 
+        InputDisabled, // 입력을 무시해야 하는 상황
+        ConditionReady, // 컨디션 진입 준비
+        InCondition // 컨디션 내에서 측정 시행 중
     }
 
     [Header("SubManagers")]
@@ -32,7 +42,16 @@ public class GameManager3D : MonoBehaviour
     public int totalTrialCount;
     public int errorCount;
 
-    public SessionData session;
+    #region MouseLogData
+    private SessionData _sdata; // the whole session (one test); holds conditions in order
+    private ConditionData _cdata; // the current condition; retrieved from the session
+    private TrialData _tdata; // the current trial; retrieved from the condition
+
+    public SessionData Session { get { return _sdata; } }
+    public ConditionData Condition { get { return _cdata; } }
+    public TrialData TrialData { get { return _tdata; } }
+    #endregion
+
     public void Awake()
     {
         if (instance == null)
@@ -52,11 +71,6 @@ public class GameManager3D : MonoBehaviour
             Destroy(gameObject);
     }
 
-    public void Start()
-    {
-        
-    }
-
     /// <summary> Condition 단위의 측정 시작 메소드 </summary>
     public void TestStart()
     {
@@ -66,13 +80,18 @@ public class GameManager3D : MonoBehaviour
         Destroy(GameObject.Find("StartMessage"));
     }
 
-    public void Click()
+    public void MouseClick()
     {
 
     }
 
-    public void Click(bool hitFlag)
+    public void MouseClick(Vector2 pos, bool hitFlag, RaycastHit hitInfo)
     {
 
+    }
+
+    public void MouseMove()
+    {
+        
     }
 }

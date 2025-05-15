@@ -1,4 +1,4 @@
-/**
+Ôªø/**
  * FittsStudy
  *
  *		Jacob O. Wobbrock, Ph.D.
@@ -55,7 +55,7 @@ namespace MouseLog
         #region Fields
         protected int _number; // 1-based number of this trial; trial 0 is reserved for the start area for the condition
         protected bool _practice; // true if this is a practice trial; false otherwise
-        protected long _tInterval; // the normative movement time interval in milliseconds, or -1L. (∏ﬁ∆Æ∑Œ≥ æ» æ≤∏È « ø‰ X)
+        protected long _tInterval; // the normative movement time interval in milliseconds, or -1L. (Î©îÌä∏Î°úÎÜà Ïïà Ïì∞Î©¥ ÌïÑÏöî X)
 
         protected TimePointR _start; // the click point that started this trial
         protected TimePointR _end; // the click point that ended this trial
@@ -126,70 +126,35 @@ namespace MouseLog
         }
         #endregion
 
-        #region Condition Values: Number, IsStartAreaTrial, IsPractice, UsedMetronome, ID(unused), MT
+        #region Condition Values: Number, IsStartAreaTrial, IsPractice, UsedMetronome, ID(unused), MT, Axis, Circular, A, W
 
-        /// <summary>
-        /// Gets the trial number of this trial. This is a 1-based index within the
-        /// condition although there <i>is</i> a trial at index 0, which is the special 
-        /// start-area trial.
-        /// </summary>
         public int Number { get { return _number; } }
 
-        /// <summary>
-        /// Gets whether or not this trial is the special start-area trial, and therefore not
-        /// really a trial at all, but a location for the initial click to begin a condition.
-        /// </summary>
         public bool IsStartAreaTrial { get { return _number == 0; } }
 
-        /// <summary>
-        /// Gets a value indicating whether or not this trial is a practice trial. Is used
-        /// to disregard marked trials for condition-level calculations.
-        /// </summary>
-        public bool IsPractice
-        {
-            get { return _practice; }
-        }
+        /// <summary> Practice TrialÏùÄ condition-level calculationsÏóêÏÑú Ï†úÏô∏Îê©ÎãàÎã§. </summary>
+        public bool IsPractice { get { return _practice; } }
 
-        /// <summary>
-        /// Gets whether or not this trial used a metronome to govern movement time as an
-        /// independent variable.
-        /// </summary>
-        public bool UsedMetronome
-        {
-            get { return _tInterval != -1L; }
-        }
+        /// <summary> Gets whether or not this trial used a metronome to govern movement time. </summary>
+        public bool UsedMetronome { get { return _tInterval != -1L; } }
 
-        ///// <summary>
-        ///// Gets the nominal index of difficulty for this trial.
-        ///// </summary>
-        //public double ID
-        //{
-        //    get
-        //    {
-        //        return Math.Log((double)this.A / this.W + 1.0, 2.0);
-        //    }
-        //}
+        public double ID { get { return Math.Log((double)A /W + 1.0, 2.0); } }
 
         /// <summary>
         /// Gets the normative movement time in milliseconds for this trial. The normative 
         /// movement time is the time of a desired movement "encouraged" by the metronome 
         /// interval tick time. If a normative time isn't used, this value is -1L.
         /// </summary>
-        public long MT
-        {
-            get { return _tInterval; }
-        }
+        public long MT { get { return _tInterval; } }
 
-        /// <summary>
-        /// Gets the angle of the nominal movement axis for this trial, in radians.
-        /// </summary>
-        public double Axis
-        {
-            get
-            {
-                return PointR.Angle(_lastTarget.Center, _thisTarget.Center, true);
-            }
-        }
+        /// <summary> Gets the angle of the nominal movement axis for this trial, in radians. </summary>
+        public double Axis { get { return PointR.Angle(_lastTarget.Center, _thisTarget.Center, true); } }
+
+        public bool Circular { get { return true; } } // 1D Ï°∞Í±¥ Ï∑®Í∏â Ïïà ÌïòÎãà Î¨¥Ï°∞Í±¥ true;
+
+        public int A { get { return _owner.A; } }
+
+        public int W { get { return _owner.W; } }
         #endregion
 
         #region Measured Values
@@ -430,9 +395,6 @@ namespace MouseLog
             return bivariate ? PointR.Distance(_thisTarget.Center, (PointR)_end) : this.NormalizedEnd.X; // nend is relative to (0,0)
         }
 
-
-
-
         #endregion
 
         #region Error and Outlier
@@ -516,6 +478,12 @@ namespace MouseLog
                 return PointR.Empty;
             }
         }
+
+        public bool TargetContains(PointR pt)
+        {
+            return _thisTarget.Contains(pt);
+        }
+
         #endregion
 
         #region IXmlLoggable Members
@@ -547,8 +515,8 @@ namespace MouseLog
             writer.WriteAttributeString("axis", XmlConvert.ToString(Math.Round((double)Mathf.Rad2Deg * this.Axis, 4)));
 
             writer.WriteAttributeString("angle", XmlConvert.ToString(Math.Round((double)Mathf.Rad2Deg * this.Axis, 4)));
-            writer.WriteAttributeString("ae_1d", XmlConvert.ToString(Math.Round(this.GetAe(true), 4))); // 2d ∞™¿∏∑Œ ∞≠¡¶ ¿‘∑¬
-            writer.WriteAttributeString("dx_1d", XmlConvert.ToString(Math.Round(this.GetDx(true), 4))); // 2d ∞™¿∏∑Œ ∞≠¡¶ ¿‘∑¬
+            writer.WriteAttributeString("ae_1d", XmlConvert.ToString(Math.Round(this.GetAe(true), 4))); // 2d Í∞íÏúºÎ°ú Í∞ïÏ†ú ÏûÖÎ†•
+            writer.WriteAttributeString("dx_1d", XmlConvert.ToString(Math.Round(this.GetDx(true), 4))); // 2d Í∞íÏúºÎ°ú Í∞ïÏ†ú ÏûÖÎ†•
 
             writer.WriteAttributeString("ae_2d", XmlConvert.ToString(Math.Round(this.GetAe(true), 4)));
             writer.WriteAttributeString("dx_2d", XmlConvert.ToString(Math.Round(this.GetDx(true), 4)));
