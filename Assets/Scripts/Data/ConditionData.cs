@@ -38,6 +38,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Xml;
 using TMPro;
 using UnityEngine;
 
@@ -54,7 +56,7 @@ namespace MouseLog
         public ConditionConfig(int a, int w) { A = a; W = w; }
     }
 
-    public class ConditionData
+    public class ConditionData: IXmlLoggable
     {
         #region Fields
         private int _block; // the index number of the block to which this condition belongs
@@ -515,6 +517,189 @@ namespace MouseLog
             }
         }
         #endregion
+
+        #region Outliers
+
+        /// <summary>
+        /// Counts the number of completed spatial outlier trials in this condition.
+        /// </summary>
+        public int NumSpatialOutliers
+        {
+            get
+            {
+                int outliers = 0;
+                for (int i = 1; i < _trials.Count; i++) // start beyond the special start area trial
+                {
+                    if (!_trials[i].IsPractice && _trials[i].IsComplete && _trials[i].IsSpatialOutlier)
+                    {
+                        outliers++;
+                    }
+                }
+                return outliers;
+            }
+        }
+
+        /// <summary>
+        /// Counts the number of completed temporal outlier trials in this condition.
+        /// </summary>
+        public int NumTemporalOutliers
+        {
+            get
+            {
+                int outliers = 0;
+                for (int i = 1; i < _trials.Count; i++) // start beyond the special start area trial
+                {
+                    if (!_trials[i].IsPractice && _trials[i].IsComplete && _trials[i].IsTemporalOutlier)
+                    {
+                        outliers++;
+                    }
+                }
+                return outliers;
+            }
+        }
+
+        #endregion
+
+        #region IXmlLoggable Members
+
+        /// <summary>
+        /// Writes all or part of this data object to XML. If this data object owns other
+        /// data objects that will also be written, this method may leave some XML elements
+        /// open, which will be closed with a later call to <i>WriteXmlFooter</i>.
+        /// </summary>
+        /// <param name="writer">An open XML writer. The writer will be left open by this method
+        /// after writing.</param>
+        /// <returns>Returns <b>true</b> if successful; <b>false</b> otherwise.</returns>
+        public bool WriteXmlHeader(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("Condition");
+            writer.WriteAttributeString("block", XmlConvert.ToString(_block));
+            writer.WriteAttributeString("index", XmlConvert.ToString(_index));
+            writer.WriteAttributeString("circular", XmlConvert.ToString(_circular));
+            writer.WriteAttributeString("metronome", XmlConvert.ToString(this.UsedMetronome));
+            writer.WriteAttributeString("trials", XmlConvert.ToString(this.NumTrials));
+            writer.WriteAttributeString("completed", XmlConvert.ToString(this.NumCompletedTrials));
+            writer.WriteAttributeString("practice", XmlConvert.ToString(this.NumTrials - this.NumTestTrials));
+            writer.WriteAttributeString("test", XmlConvert.ToString(this.NumTestTrials));
+
+            writer.WriteAttributeString("MTPct", XmlConvert.ToString(_mtpct));
+            writer.WriteAttributeString("MTPred", XmlConvert.ToString(_mtpred));
+            writer.WriteAttributeString("MT", XmlConvert.ToString(this.MT));
+
+            writer.WriteAttributeString("A", XmlConvert.ToString(_a));
+            writer.WriteAttributeString("W", XmlConvert.ToString(_w));
+            writer.WriteAttributeString("ID", XmlConvert.ToString(Math.Round(this.ID, 4)));
+
+            writer.WriteAttributeString("Ae_1d", XmlConvert.ToString(Math.Round(this.GetAe(false), 4)));
+            writer.WriteAttributeString("SD_1d", XmlConvert.ToString(Math.Round(this.GetSD(false), 4)));
+            writer.WriteAttributeString("We_1d", XmlConvert.ToString(Math.Round(this.GetWe(false), 4)));
+            writer.WriteAttributeString("IDe_1d", XmlConvert.ToString(Math.Round(this.GetIDe(false), 4)));
+            writer.WriteAttributeString("TP_1d", XmlConvert.ToString(Math.Round(this.GetTP(false), 4)));
+
+            writer.WriteAttributeString("Ae_2d", XmlConvert.ToString(Math.Round(this.GetAe(true), 4)));
+            writer.WriteAttributeString("SD_2d", XmlConvert.ToString(Math.Round(this.GetSD(true), 4)));
+            writer.WriteAttributeString("We_2d", XmlConvert.ToString(Math.Round(this.GetWe(true), 4)));
+            writer.WriteAttributeString("IDe_2d", XmlConvert.ToString(Math.Round(this.GetIDe(true), 4)));
+            writer.WriteAttributeString("TP_2d", XmlConvert.ToString(Math.Round(this.GetTP(true), 4)));
+
+            writer.WriteAttributeString("MTe", XmlConvert.ToString(this.GetMTe(ExcludeOutliersType.None)));
+            writer.WriteAttributeString("MTe_sx", XmlConvert.ToString(this.GetMTe(ExcludeOutliersType.Spatial)));
+            writer.WriteAttributeString("MTe_tx", XmlConvert.ToString(this.GetMTe(ExcludeOutliersType.Temporal)));
+
+            writer.WriteAttributeString("errors", XmlConvert.ToString(this.GetNumErrors(ExcludeOutliersType.None)));
+            writer.WriteAttributeString("errors_sx", XmlConvert.ToString(this.GetNumErrors(ExcludeOutliersType.Spatial)));
+            writer.WriteAttributeString("errors_tx", XmlConvert.ToString(this.GetNumErrors(ExcludeOutliersType.Temporal)));
+            writer.WriteAttributeString("errorPct", XmlConvert.ToString(Math.Round(GetErrorRate(ExcludeOutliersType.None), 4)));
+            writer.WriteAttributeString("errorPct_sx", XmlConvert.ToString(Math.Round(GetErrorRate(ExcludeOutliersType.Spatial), 4)));
+            writer.WriteAttributeString("errorPct_tx", XmlConvert.ToString(Math.Round(GetErrorRate(ExcludeOutliersType.Temporal), 4)));
+
+            writer.WriteAttributeString("spatialOutliers", XmlConvert.ToString(this.NumSpatialOutliers));
+            writer.WriteAttributeString("temporalOutliers", XmlConvert.ToString(this.NumTemporalOutliers));
+
+            // write each trial out in turn. do not write out the special start-area trial at index 0.
+            for (int i = 1; i < _trials.Count; i++)
+            {
+                TrialData td = _trials[i];
+                td.WriteXmlHeader(writer);
+            }
+
+            writer.WriteEndElement(); // </Condition>
+
+            return true;
+        }
+
+        /// <summary>
+        /// Writes any closing XML necessary for this data object. This method can simply
+        /// return <b>true</b> if all data was already written in the header.
+        /// </summary>
+        /// <param name="writer">An open XML writer. The writer will be closed by this method
+        /// after writing.</param>
+        /// <returns>Returns <b>true</b> if successful; <b>false</b> otherwise.</returns>
+        public bool WriteXmlFooter(XmlTextWriter writer)
+        {
+            return true; // do nothing
+        }
+
+        /// <summary>
+        /// Reads a data object from XML and returns an instance of the object.
+        /// </summary>
+        /// <param name="reader">An open XML reader. The reader will be closed by this
+        /// method after reading.</param>
+        /// <returns>Returns <b>true</b> if successful; <b>false</b> otherwise.</returns>
+        /// <remarks>Clients should first create a new instance using a default constructor, and then
+        /// call this method to populate the data fields of the default instance.</remarks>
+        public bool ReadFromXml(XmlTextReader reader)
+        {
+            reader.Read(); // <Condition>
+            if (reader.Name != "Condition")
+                throw new XmlException("XML format error: Expected the <Condition> tag.");
+
+            _block = XmlConvert.ToInt32(reader.GetAttribute("block"));
+            _index = XmlConvert.ToInt32(reader.GetAttribute("index"));
+            _circular = XmlConvert.ToBoolean(reader.GetAttribute("circular"));
+            int trials = XmlConvert.ToInt32(reader.GetAttribute("trials"));
+            _mtpct = XmlConvert.ToDouble(reader.GetAttribute("MTPct"));
+            _mtpred = XmlConvert.ToInt64(reader.GetAttribute("MTPred"));
+            _a = XmlConvert.ToInt32(reader.GetAttribute("A"));
+            _w = XmlConvert.ToInt32(reader.GetAttribute("W"));
+
+            // read in the trials and add them to the condition
+            _trials = new List<TrialData>(trials + 1); // include slot for special start-area trial
+            for (int i = 1; i <= trials; i++)
+            {
+                TrialData td = new TrialData();
+                if (!td.ReadFromXml(reader))
+                    throw new XmlException("Failed to read the TrialData2D.");
+                if (i == 1)
+                {
+                    TrialData sa = TrialData.CreateStartTarget((TrialData)td);
+                    _trials.Add(sa); // add special start-area trial
+                }
+
+                // now add the trial just read in
+                _trials.Add(td);
+            }
+
+            reader.Read(); // </Condition>
+            if (reader.Name != "Condition" || reader.NodeType != XmlNodeType.EndElement)
+                throw new XmlException("XML format error: Expected the </Condition> tag.");
+
+            return true;
+        }
+
+        /// <summary>
+        /// Performs any analyses on this data object and writes the results to a comma-delimitted
+        /// file for subsequent copy-and-pasting into a spreadsheet like Microsoft Excel or SAS JMP.
+        /// </summary>
+        /// <param name="writer">An open stream writer pointed to a text file. The writer will be closed 
+        /// by this method after writing.</param>
+        /// <returns>True if writing is successful; false otherwise.</returns>
+        public bool WriteResultsToTxt(StreamWriter writer)
+        {
+            return true; // do nothing
+        }
     }
+
+    #endregion
 }
 

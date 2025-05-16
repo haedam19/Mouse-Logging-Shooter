@@ -6,20 +6,36 @@ using UnityEngine;
 [Serializable]
 public class ControlDisplayGain
 {
-    public enum Type{ linear }
+    public enum Type{ Linear, BivariateLinear, Directional }
     public Type type;
 
-    private float _sensitivity;
+    private float _sensitivityX;
+    private float _sensitivityY;
+
 
     public ControlDisplayGain(Type type, float sensitivity)
     {
         this.type = type;
-        this._sensitivity = sensitivity;
+        this._sensitivityX = sensitivity;
     }
 
     public Vector2 GainedDelta(Vector2 delta)
     {
-        return _sensitivity * delta;
+        Vector2 gDelta;
+
+        switch(type)
+        {
+            case Type.Linear:
+                gDelta = _sensitivityX * delta;
+                break;
+            case Type.BivariateLinear:
+                gDelta = new Vector2(_sensitivityX * delta.x, _sensitivityY * delta.y);
+                break;
+            default:
+                gDelta = _sensitivityX * delta;
+                break;
+        }
+        return gDelta;
     }
 
 }
