@@ -19,7 +19,8 @@ public class FirsetPersonLook : MonoBehaviour
     private void Awake()
     {
         _d = Screen.height / (2 * Mathf.Tan(Camera.main.fieldOfView * Mathf.Deg2Rad / 2));
-        gain = new ControlDisplayGain(ControlDisplayGain.Type.Linear, 1f);
+
+        gain = new ControlDisplayGain(ControlDisplayGain.Type.Univariate, 1f);
     }
 
     private void OnEnable()

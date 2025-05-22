@@ -35,6 +35,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
 **/
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -52,18 +53,26 @@ namespace MouseLog
         public int _subject; // subject ID
         public bool _circular; // circular ISO 9241-9 or vertical ribbons
         public Screen _screen; // screen size
-        public int[] _ASet; // movement amplitudes in pixels
-        public int[] _WSet; // target widths in pixels
+        public int[] _a; // movement amplitudes in pixels
+        public int[] _w; // target widths in pixels
+        private double[] _mtpct; // percents of Fitts' law-predicted movement speeds (e.g., 90% is faster, 110% is slower)
+        private double _intercept; // the supplied Fitts' 'a' intercept regression coefficient, in milliseconds
+        private double _slope; // the supplied Fitts' 'b' slope regression coefficient, in ms/bit
         public List<ConditionData> _conditions; // ordered list of (A x W) conditions
         public int condIdx;
 
-        public SessionData(int subject, bool circular, Screen screen, int[] a, int[] w)
+        public SessionData(int subject, bool circular, Screen screen, int[] a, int[] w, double[] MTPct, double Intercept, double slope)
         {
             _subject = subject;
             _circular = circular;
             _screen = screen;
-            _ASet = a;
-            _WSet = w;
+            _a = a;
+            _w = w;
+            _mtpct = MTPct;
+            _intercept = Intercept;
+            _slope = slope;
+            _screen = screen;
+            _conditions = new List<ConditionData>();
 
             // Get shuffled condition sequence
             List<ConditionConfig> conditions = CreateConditionSequence(true);
@@ -76,9 +85,9 @@ namespace MouseLog
         public List<ConditionConfig> CreateConditionSequence(bool shuffle)
         {
             List<ConditionConfig> conditionList = new List<ConditionConfig>();
-            foreach (int A in _ASet)
+            foreach (int A in _a)
             {
-                foreach (int W in _WSet)
+                foreach (int W in _w)
                     conditionList.Add(new ConditionConfig(A, W));
             }
 
@@ -98,6 +107,25 @@ namespace MouseLog
             }
 
             return conditionList;
+        }
+
+        public static int[] ShuffleArray(int[] inputArray)
+        {
+            // 배열 복사 (원본을 변경하지 않기 위해)
+            int[] shuffled = (int[])inputArray.Clone();
+            System.Random rand = new System.Random();
+
+            // Fisher-Yates 셔플 알고리즘
+            for (int i = shuffled.Length - 1; i > 0; i--)
+            {
+                int j = rand.Next(0, i + 1);
+                // 값 교환
+                int temp = shuffled[i];
+                shuffled[i] = shuffled[j];
+                shuffled[j] = temp;
+            }
+
+            return shuffled;
         }
     }
 
