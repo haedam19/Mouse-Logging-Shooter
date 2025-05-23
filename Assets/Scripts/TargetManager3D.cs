@@ -11,7 +11,7 @@ public class TargetManager3D : MonoBehaviour
 {
     [SerializeField] GameObject targetPrefab;
     [SerializeField] GameObject startingTargetPrefab;
-    [SerializeField] GameObject targetRoot;
+    [SerializeField] GameObject objectPoolRoot;
 
     int m_currentTrial;
     int m_currentTarget;
@@ -27,7 +27,7 @@ public class TargetManager3D : MonoBehaviour
         transform.position = new Vector3(0f, 0f, distanceToCamera);
     }
 
-    public List<Target3D> SpawnTargets(int targetCount, ConditionConfig condition)
+    public List<Target3D> CreateTargets(int conditionIndex, int targetCount, ConditionConfig condition)
     {
         List<Target3D> targets = new List<Target3D>(targetCount);
         m_A = condition.A;
@@ -46,9 +46,14 @@ public class TargetManager3D : MonoBehaviour
             }
         }
 
+        GameObject conditionRoot = new GameObject($"COndition_{conditionIndex}");
+        conditionRoot.transform.SetParent(objectPoolRoot != null ? objectPoolRoot.transform : null, false);
+
         for (int i = 0; i < targetCount; i++)
         {
-            GameObject targetObj = Instantiate(targetPrefab, transform);
+            GameObject targetObj = Instantiate(targetPrefab);
+            targetObj.transform.SetParent(conditionRoot.transform, false);
+
             float rad = (2 * Mathf.PI / targetCount) * i + Mathf.PI / 2f;
             float x = (m_A / 2) * Mathf.Cos(rad);
             float y = (m_A / 2) * Mathf.Sin(rad);
@@ -70,6 +75,7 @@ public class TargetManager3D : MonoBehaviour
         {
             if(i / 2 == 0)
             {
+                
 
             }
             else

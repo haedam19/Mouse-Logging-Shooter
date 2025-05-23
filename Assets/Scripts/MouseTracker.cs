@@ -1,7 +1,22 @@
 ﻿using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class FirsetPersonLook : MonoBehaviour
+public struct MouseMove
+{
+    public Vector2 gDelta;
+    public Vector2 lastPos;
+    public Vector2 currentPos;
+
+    public MouseMove(Vector2 gDelta, Vector2 lastPos, Vector2 currentPos)
+    {
+        this.gDelta = gDelta;
+        this.lastPos = lastPos;
+        this.currentPos = currentPos;
+    }
+
+}
+
+public class MouseTracker : MonoBehaviour
 {
     private Mouse Mouse { get { return Mouse.current; } }
 
@@ -55,7 +70,7 @@ public class FirsetPersonLook : MonoBehaviour
         // 마우스 움직임 이벤트 발생
         if (_delta.sqrMagnitude > 0)
         {
-            GameManager3D.Instance.MouseMove();
+            GameManager3D.Instance.MouseMove(new MouseMove(_gDelta, _lastPos, _currentPos));
             // int currentCond = GameManager3D.Instance.Session.condIdx;
             // GameManager3D.Instance.Session._conditions[currentCond].AddMove(_currentPos);
         }

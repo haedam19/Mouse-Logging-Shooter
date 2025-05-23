@@ -35,6 +35,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
 **/
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -67,6 +68,9 @@ namespace MouseLog
         {
             public static readonly PathAnalyses Empty;
             public bool IsEmpty { get { return MovementVariability == 0.0 && MovementError == 0.0 && MovementOffset == 0.0; } }
+            public int TaskAxisCrossings;
+            public int MovementDirectionChanges;
+            public int OrthogonalDirectionChanges;
             public double MovementVariability;
             public double MovementError;
             public double MovementOffset;
@@ -75,8 +79,6 @@ namespace MouseLog
         private TrialData _owner;
         private List<TimePointR> _moves;
 
-        // public List<Vector2> mousePos;
-        // public List<TimeL> time; // ms ¥‹¿ß
 
         #region Constants
         /// <summary>
@@ -331,6 +333,177 @@ namespace MouseLog
 
         #endregion
 
+        #region MacKenzie et al. (CHI 2001) Path Analyses
+
+        /// <summary>
+        /// Calculates the six path analyses defined by MacKenzie et al. (CHI 2001) using
+        /// the task axis given. The smoothed position is used to avoid counting minor
+        /// artifacts that occur in the raw or resampled position paths.
+        /// </summary>
+        /// <param name="axisStart">The starting point of the task axis.</param>
+        /// <param name="axisEnd">The ending point of the task axis.</param>
+        /// <returns></returns>
+        public PathAnalyses DoPathAnalyses(PointR axisStart, PointR axisEnd)
+        {
+            if (_moves.Count == 0)
+                return PathAnalyses.Empty;
+
+            // get the smoothed position profile and convert it to PointRs (we don't need time for path analyses)
+            Profiles smoothed = CreateSmoothedProfiles();
+            List<PointR> pts = TimePointR.ConvertList(smoothed.Position);
+
+            // rotate the task so that it proceeds at 0 degrees (+x axis, straight right)
+            PointR c = PointR.Centroid(pts);
+            double radians = PointR.Angle(axisStart, axisEnd, true);
+            axisStart = PointR.RotatePoint(axisStart, c, -radians);
+            axisEnd = PointR.RotatePoint(axisEnd, c, -radians);
+            List<PointR> rotatedPts = PointR.RotatePoints(pts, -radians);
+
+            // perform the path analysis computations for each path analysis measure
+            PathAnalyses analyses;
+            analyses.TaskAxisCrossings = TaskAxisCrossings(rotatedPts, axisEnd.Y);
+            analyses.MovementDirectionChanges = MovementDirectionChanges(rotatedPts);
+            analyses.OrthogonalDirectionChanges = OrthogonalDirectionChanges(rotatedPts);
+            analyses.MovementVariability = MovementVariability(rotatedPts, axisEnd.Y);
+            analyses.MovementError = MovementError(rotatedPts, axisEnd.Y);
+            analyses.MovementOffset = MovementOffset(rotatedPts, axisEnd.Y);
+            return analyses;
+        }
+
+        /// <summary>
+        /// Calculates the number of task axis crossings occurring in this movement path.
+        /// </summary>
+        /// <param name="pts">The points to analyze. These must be first rotated such that
+        /// the task axis they are following is horizontal.</param>
+        /// <param name="horizontal">The y-value coordinate of the horizontal task axis.</param>
+        /// <returns>The task axis crossings computation.</returns>
+        private int TaskAxisCrossings(List<PointR> pts, double horizontal)
+        {
+            if (pts.Count < 2)
+                return 0;
+
+            int tac = 0;
+            double d0 = pts[0].Y - horizontal; // initial side of horizontal
+            for (int i = 1; i < pts.Count; i++)
+            {
+                double d1 = pts[i].Y - horizontal;
+                if (d0 * d1 < 0.0) // multiplying will only be less than zero if they are of opposite signs
+                    tac++;
+                if (d1 != 0.0)
+                    d0 = d1; // update
+            }
+            return tac;
+        }
+
+        /// <summary>
+        /// Calculates the number of movement direction changes in this movement path. An movement
+        /// direction change is, for a horizontal path, when the sign of the difference between successive
+        /// Y-values change.
+        /// </summary>
+        /// <param name="pts">The points to analyze. These must be first rotated such that
+        /// the task axis they are following is horizontal.</param>
+        /// <returns>The movement direction changes computation.</returns>
+        private int MovementDirectionChanges(List<PointR> pts)
+        {
+            if (pts.Count < 3)
+                return 0;
+
+            int mdc = 0;
+            double d0 = pts[1].Y - pts[0].Y;
+            for (int i = 2; i < pts.Count; i++)
+            {
+                double d1 = pts[i].Y - pts[i - 1].Y;
+                if (d0 * d1 < 0.0) // direction change in Y
+                    mdc++;
+                if (d1 != 0.0)
+                    d0 = d1; // update
+            }
+            return mdc;
+        }
+
+        /// <summary>
+        /// Calculates the number of orthogonal direction changes in this movement path. An orthogonal
+        /// direction change is, for a horizontal path, when the sign of the difference between successive
+        /// X-values change.
+        /// </summary>
+        /// <param name="pts">The points to analyze. These must be first rotated such that
+        /// the task axis they are following is horizontal.</param>
+        /// <returns>The orthogonal direction changes computation.</returns>
+        private int OrthogonalDirectionChanges(List<PointR> pts)
+        {
+            if (pts.Count < 3)
+                return 0;
+
+            int odc = 0;
+            double d0 = pts[1].X - pts[0].X;
+            for (int i = 2; i < pts.Count; i++)
+            {
+                double d1 = pts[i].X - pts[i - 1].X;
+                if (d0 * d1 < 0.0) // direction change in X
+                    odc++;
+                if (d1 != 0.0)
+                    d0 = d1; // update
+            }
+            return odc;
+        }
+
+        /// <summary>
+        /// Calculates the movement variability of this movement path. This is the wigglyness of
+        /// the path and is based on the standard deviation of movement points' distances from the
+        /// task axis.
+        /// </summary>
+        /// <param name="pts">The points to analyze. These must be first rotated such that
+        /// the task axis they are following is horizontal.</param>
+        /// <param name="horizontal">The y-value coordinate of the horizontal task axis.</param>
+        /// <returns>The movement variability computation.</returns>
+        private double MovementVariability(List<PointR> pts, double horizontal)
+        {
+            double[] yvals = new double[pts.Count];
+            for (int i = 0; i < pts.Count; i++)
+            {
+                yvals[i] = pts[i].Y - horizontal;
+            }
+            return StatsEx.StdDev(yvals);
+        }
+
+        /// <summary>
+        /// Calculates the movement error, which is the average deviation of the sample points from 
+        /// the task axis, irrespective of whether the points are above or below the axis.
+        /// </summary>
+        /// <param name="pts">The points to analyze. These must be first rotated such that
+        /// the task axis they are following is horizontal.</param>
+        /// <param name="horizontal">The y-value coordinate of the horizontal task axis.</param>
+        /// <returns>The movement error computation.</returns>
+        private double MovementError(List<PointR> pts, double horizontal)
+        {
+            double sum = 0.0;
+            for (int i = 0; i < pts.Count; i++)
+            {
+                sum += Math.Abs(pts[i].Y - horizontal);
+            }
+            return sum / pts.Count;
+        }
+
+        /// <summary>
+        /// Calculates the movement offset, which is the mean deviation of sample points from the 
+        /// task axis.
+        /// </summary>
+        /// <param name="pts">The points to analyze. These must be first rotated such that
+        /// the task axis they are following is horizontal.</param>
+        /// <param name="horizontal">The y-value coordinate of the horizontal task axis.</param>
+        /// <returns>The movement offset computation.</returns>
+        private double MovementOffset(List<PointR> pts, double horizontal)
+        {
+            double sum = 0.0;
+            for (int i = 0; i < pts.Count; i++)
+            {
+                sum += pts[i].Y - horizontal;
+            }
+            return sum / pts.Count;
+        }
+
+        #endregion
+
         #region IXmlLoggable Members
         public bool WriteXmlHeader(XmlTextWriter writer)
         {
@@ -362,13 +535,13 @@ namespace MouseLog
             }
 
             // write out all of MacKenzie's path analysis measures
-            //PathAnalyses analyses = DoPathAnalyses((PointR)_owner.Start, _owner.TargetCenterFromStart);
-            //writer.WriteAttributeString("taskAxisCrossings", XmlConvert.ToString(analyses.TaskAxisCrossings));
-            //writer.WriteAttributeString("movementDirectionChanges", XmlConvert.ToString(analyses.MovementDirectionChanges));
-            //writer.WriteAttributeString("orthogonalDirectionChanges", XmlConvert.ToString(analyses.OrthogonalDirectionChanges));
-            //writer.WriteAttributeString("movementVariability", XmlConvert.ToString(Math.Round(analyses.MovementVariability, 4)));
-            //writer.WriteAttributeString("movementError", XmlConvert.ToString(Math.Round(analyses.MovementError, 4)));
-            //writer.WriteAttributeString("movementOffset", XmlConvert.ToString(Math.Round(analyses.MovementOffset, 4)));
+            PathAnalyses analyses = DoPathAnalyses((PointR)_owner.Start, _owner.TargetCenterFromStart);
+            writer.WriteAttributeString("taskAxisCrossings", XmlConvert.ToString(analyses.TaskAxisCrossings));
+            writer.WriteAttributeString("movementDirectionChanges", XmlConvert.ToString(analyses.MovementDirectionChanges));
+            writer.WriteAttributeString("orthogonalDirectionChanges", XmlConvert.ToString(analyses.OrthogonalDirectionChanges));
+            writer.WriteAttributeString("movementVariability", XmlConvert.ToString(Math.Round(analyses.MovementVariability, 4)));
+            writer.WriteAttributeString("movementError", XmlConvert.ToString(Math.Round(analyses.MovementError, 4)));
+            writer.WriteAttributeString("movementOffset", XmlConvert.ToString(Math.Round(analyses.MovementOffset, 4)));
             writer.WriteAttributeString("taskAxisCrossings", XmlConvert.ToString(0));
             writer.WriteAttributeString("movementDirectionChanges", XmlConvert.ToString(0));
             writer.WriteAttributeString("orthogonalDirectionChanges", XmlConvert.ToString(0));

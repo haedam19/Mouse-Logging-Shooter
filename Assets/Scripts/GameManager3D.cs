@@ -1,5 +1,8 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Xml;
 using MouseLog;
 using UnityEngine;
 
@@ -27,6 +30,8 @@ public class GameManager3D : MonoBehaviour
         InCondition // 컨디션 내에서 측정 시행 중
     }
 
+    private string gameLogfilePath; // 게임 실행 관련 로그 기록 경로
+
     [Header("SubManagers")]
     public EnvManager3D envManager;
     public TargetManager3D targetManager;
@@ -52,10 +57,25 @@ public class GameManager3D : MonoBehaviour
     public TrialData TrialData { get { return _tdata; } }
     #endregion
 
+    #region file
+    private string _fileNoExt; // full path and filename without extension
+    private XmlTextWriter _writer; // XML writer -- uses _fileNoExt.xml
+    #endregion
+
     public void Awake()
     {
-        if (instance == null)
+        if (instance != null)
+            Destroy(gameObject);
+        else
         {
+#if UNITY_EDITOR
+            gameLogfilePath = Application.dataPath;
+
+#elif UNITY_STANDALONE_WIN
+            gameLogfilePath = Application.persistentDataPath;
+#endif
+            LoadData();
+
             instance = this;
             playing = false;
             inExporting = false;
@@ -67,13 +87,18 @@ public class GameManager3D : MonoBehaviour
             totalTrialCount = 0;
             errorCount = 0;
         }
-        else
-            Destroy(gameObject);
+    }
+
+    public void StartSession(SessionData session)
+    {
+
     }
 
     /// <summary> Condition 단위의 측정 시작 메소드 </summary>
     public void TestStart()
     {
+        _fileNoExt = string.Format("{0}\\{1}__{2}", Application.persistentDataPath, _sdata.FilenameBase, Environment.TickCount);
+
         playing = true;
         Cursor.lockState = CursorLockMode.None;
         startTime = Time.time;
@@ -109,10 +134,45 @@ public class GameManager3D : MonoBehaviour
         }
     }
 
-    public void MouseMove()
+    public void MouseMove(MouseMove move)
     {
         
     }
 
     private void DoError() { } // TODO: IMPLEMENT
+
+    private void LoadData()
+    {
+        TextAsset textAsset = Resources.Load<TextAsset>(Application.dataPath + "/Json/config.json");
+        string fileName = "ConfigLoadLog" + DateTime.Now.ToString("yyyy-MM-dd") + ".txt";
+
+        if (textAsset != null)
+        {
+            string json = textAsset.text;
+            SessionConfiguration config = JsonUtility.FromJson<SessionConfiguration>(json);
+            if (config.isValid())
+            {
+                _sdata = new SessionData(config.subject, config.isCircular, new ScreenData(Screen.width, Screen.height), config.a, config.w, null, -1.0, -1.0, config.trials, config.practice);
+                _cdata = _sdata[0]; // first overall condition
+                _tdata = _cdata[0]; // first trial is special start-area trial at index 0
+                totalTrialCount = config.trials;
+            }
+            else
+            {
+                using (StreamWriter sw = new StreamWriter(Path.Combine(gameLogfilePath, fileName), true))
+                {
+                    sw.WriteLine("Invalid config.json");
+                }
+                Application.Quit();
+            }
+        }
+        else
+        {
+            using (StreamWriter sw = new StreamWriter(Path.Combine(gameLogfilePath, fileName), true))
+            {
+                sw.WriteLine("Failed to load config.json");
+            }
+            Application.Quit();
+        }
+    }
 }

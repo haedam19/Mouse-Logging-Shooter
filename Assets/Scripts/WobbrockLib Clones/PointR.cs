@@ -10,9 +10,11 @@
  *		wobbrock@uw.edu
  */
 /// <summary>
-/// 2차원 x, y좌표를 double로 저장합니다.
+/// <para> 2차원 x, y좌표를 double로 저장합니다. </para>
+/// <para> 좌표 표현에 쓰일 때는 lefttop을 원점으로 취급합니다. </para>
 /// </summary>
 using System;
+using UnityEngine;
 using System.Collections.Generic;
 
 public struct PointR
@@ -142,6 +144,46 @@ public struct PointR
         }
 
         return new PointR(num / (double)points.Count, num2 / (double)points.Count);
+    }
+
+    /// <summary>
+    /// 점들의 무게중심을 중심으로 하여 radians 만큼 회전시킨 점(PointR) 리스트를 반환합니다.
+    /// </summary>
+    public static List<PointR> RotatePoints(List<PointR> points, double radians)
+    {
+        List<PointR> list = new List<PointR>(points.Count);
+        PointR pointR = Centroid(points);
+        double x = pointR.X;
+        double y = pointR.Y;
+        double num = Math.Cos(radians);
+        double num2 = Math.Sin(radians);
+        for (int i = 0; i < points.Count; i++)
+        {
+            double num3 = points[i].X - x;
+            double num4 = points[i].Y - y;
+            PointR empty = PointR.Empty;
+            empty.X = num3 * num - num4 * num2 + x;
+            empty.Y = num3 * num2 + num4 * num + y;
+            list.Add(empty);
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// PointR를 Vector2로 변환합니다. y좌표는 유니티 좌표계에 맞게 변환됩니다.
+    /// </summary>
+    public static explicit operator PointR(Vector2 v)
+    {
+        return new PointR(v.x, Screen.height - v.y);
+    }
+
+    /// <summary>
+    /// Vector2를 PointR로 변환합니다. y좌표는 화면 좌표계에 맞게 변환됩니다.
+    /// </summary>
+    public static explicit operator Vector2(PointR p)
+    {
+        return new Vector2((float)p.X, Screen.height - (float)p.Y);
     }
 
     public static bool operator ==(PointR p1, PointR p2)
